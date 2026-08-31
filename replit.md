@@ -37,6 +37,7 @@ An offline-first workspace prototype that turns WhatsApp exports, voice notes, a
 - Import or paste WhatsApp-style text and simulate voice memo transcription or screenshot OCR.
 - Review extracted commitments grouped into evolving threads with owner, deadline, urgency, confidence, and exact source traceability.
 - Search source content, inspect the original moment, mark work done, and copy a reply draft.
+- Keep open commitments first with a separate completed section, switch to a month calendar, and open Google Calendar event templates for recognized dates.
 - Explore interruption digest, Office Kit insights, privacy settings, model choice, and confidence threshold controls.
 
 ## User preferences

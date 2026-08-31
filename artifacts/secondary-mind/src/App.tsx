@@ -1,7 +1,7 @@
 import { type ChangeEvent, type ReactNode, useEffect, useMemo, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
-  AlertTriangle, ArrowLeft, ArrowUpRight, Archive, BarChart3, BrainCircuit, CalendarDays,
+  AlertTriangle, ArrowLeft, ArrowUpRight, Archive, BarChart3, BrainCircuit, CalendarDays, CalendarPlus,
   Check, CheckCircle2, ChevronRight, Circle, Clipboard, Clock3, Command, Copy, Eye,
   FileText, Filter, ImagePlus, LayoutDashboard, ListFilter, LockKeyhole, Menu, MessageSquareText,
   Mic, PencilLine, Play, Plus, Radio, RotateCcw, Search, Send, Settings, ShieldCheck, SlidersHorizontal,
@@ -143,6 +143,11 @@ function App() {
     navigator.clipboard?.writeText(text);
     setNotice('Reply draft copied to clipboard');
   };
+  const exportCalendar = (task: Extraction) => {
+    if (!parseDeadlineDate(task.deadline)) return;
+    window.open(getGoogleCalendarUrl(task), '_blank', 'noopener,noreferrer');
+    setNotice('Google Calendar event ready');
+  };
   const path = location.split('?')[0];
   const sourceId = path.startsWith('/source/') ? path.slice('/source/'.length) : '';
 
@@ -185,7 +190,7 @@ function App() {
               </div>
             </header>
             <div className="mx-auto max-w-[1420px] px-5 pb-16 pt-8 md:px-10 lg:px-12">
-              {path === '/' ? <Board state={state} onComplete={completeTask} onReply={reply} onReview={id => { setReviewId(id); setReviewOpen(true); }} onSource={id => setLocation(`/source/${id}`)} /> : null}
+              {path === '/' ? <Board state={state} onComplete={completeTask} onReply={reply} onReview={id => { setReviewId(id); setReviewOpen(true); }} onSource={id => setLocation(`/source/${id}`)} onCalendar={exportCalendar} /> : null}
               {path === '/search' ? <SearchPage state={state} onSource={id => setLocation(`/source/${id}`)} /> : null}
               {path === '/digest' ? <DigestPage state={state} updateState={updateState} onComplete={completeTask} /> : null}
               {path === '/insights' ? <Insights state={state} /> : null}
@@ -208,28 +213,33 @@ function PageHeading({ eyebrow, title, detail, action }: { eyebrow: string; titl
   return <div className="mb-8 flex flex-col gap-5 border-b border-border/80 pb-7 md:flex-row md:items-end md:justify-between"><div className="animate-rise"><div className="mb-2 font-mono text-[10px] font-medium uppercase tracking-[.2em] text-primary">{eyebrow}</div><h1 className="font-serif text-[38px] leading-[.98] tracking-[-.035em] text-foreground md:text-[49px]">{title}</h1><p className="mt-3 max-w-[560px] text-[13px] leading-relaxed text-muted-foreground">{detail}</p></div>{action}</div>;
 }
 
-function Board({ state, onComplete, onReply, onReview, onSource }: { state: StoredState; onComplete: (id: string) => void; onReply: (item: Extraction) => void; onReview: (id: string) => void; onSource: (id: string) => void }) {
+function Board({ state, onComplete, onReply, onReview, onSource, onCalendar }: { state: StoredState; onComplete: (id: string) => void; onReply: (item: Extraction) => void; onReview: (id: string) => void; onSource: (id: string) => void; onCalendar: (item: Extraction) => void }) {
   const [filter, setFilter] = useState<'all' | 'review' | 'mine'>('all');
-  const threads = useMemo(() => {
-    const map = new Map<string, Extraction[]>();
-    state.extractions.filter(item => filter === 'all' || (filter === 'review' ? item.confidence < state.threshold : item.owner === 'You')).forEach(item => map.set(item.threadId, [...(map.get(item.threadId) || []), item]));
-    return [...map.entries()];
+  const [view, setView] = useState<'board' | 'calendar'>('board');
+  const matchingItems = useMemo(() => {
+    return state.extractions.filter(item => filter === 'all' || (filter === 'review' ? item.confidence < state.threshold : item.owner === 'You'));
   }, [state.extractions, state.threshold, filter]);
+  const groupThreads = (items: Extraction[]) => {
+    const map = new Map<string, Extraction[]>();
+    items.forEach(item => map.set(item.threadId, [...(map.get(item.threadId) || []), item]));
+    return [...map.entries()];
+  };
+  const openThreads = useMemo(() => groupThreads(matchingItems.filter(item => item.status === 'pending')), [matchingItems]);
+  const completedThreads = useMemo(() => groupThreads(matchingItems.filter(item => item.status === 'done')), [matchingItems]);
   const pending = state.extractions.filter(item => item.status === 'pending').length;
   return <div>
-    <PageHeading eyebrow="Monday, 18 May · 09:32" title="What still needs you?" detail="Commitments pulled from your conversations, sorted into threads so the signal is easy to find." action={<div className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-[11px] text-muted-foreground"><div className="size-2 rounded-full bg-primary" /><span className="font-semibold text-foreground">{pending} open commitments</span><span>·</span><span>across {threads.length} threads</span></div>} />
+    <PageHeading eyebrow="Monday, 18 May · 09:32" title="What still needs you?" detail="Commitments pulled from your conversations, sorted into threads so the signal is easy to find." action={<div className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-[11px] text-muted-foreground"><div className="size-2 rounded-full bg-primary" /><span className="font-semibold text-foreground">{pending} open commitments</span><span>·</span><span>across {openThreads.length} threads</span></div>} />
     <div className="mb-7 grid gap-3 md:grid-cols-[1.45fr_.8fr_.8fr]">
       <div className="dot-grid relative overflow-hidden rounded-2xl border border-[hsl(164_59%_38%/.22)] bg-[hsl(164_59%_38%/.1)] p-5"><div className="absolute -right-8 -top-10 size-40 rounded-full border-[22px] border-[hsl(164_59%_38%/.12)]" /><div className="relative"><div className="flex items-center gap-2 text-[11px] font-bold text-primary"><Sparkles size={14} /> A small nudge</div><p className="mt-3 max-w-[390px] font-serif text-[21px] leading-tight text-foreground">The Friday review has 3 related commitments waiting in one thread.</p><button onClick={() => onSource('entry-1')} data-testid="button-view-thread" className="mt-4 flex items-center gap-1 text-[11px] font-bold text-primary hover:underline">Open the thread <ArrowUpRight size={13} /></button></div></div>
       <StatCard label="Needs review" value={String(state.extractions.filter(item => item.confidence < state.threshold).length)} note="below confidence threshold" accent="amber" />
       <StatCard label="Quietly completed" value={String(state.extractions.filter(item => item.status === 'done').length)} note="this demo session" accent="blue" />
     </div>
-    <div className="mb-5 flex items-center justify-between"><div className="mobile-scroll flex gap-1 rounded-xl bg-muted p-1"><FilterButton active={filter === 'all'} onClick={() => setFilter('all')} label="All threads" /><FilterButton active={filter === 'review'} onClick={() => setFilter('review')} label="Needs review" /><FilterButton active={filter === 'mine'} onClick={() => setFilter('mine')} label="Assigned to me" /></div><button data-testid="button-board-filter" onClick={() => setFilter(filter === 'all' ? 'review' : 'all')} className="hidden items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-[11px] font-bold text-muted-foreground hover:text-foreground md:flex"><ListFilter size={14} /> Filter view</button></div>
-    <div className="space-y-4">{threads.map(([threadId, items], index) => <Thread key={threadId} threadId={threadId} items={items} entries={state.entries} index={index} onComplete={onComplete} onReply={onReply} onReview={onReview} onSource={onSource} threshold={state.threshold} />)}</div>
-    {threads.length === 0 ? <EmptyState title="Nothing needs review" detail="Every commitment is above your confidence threshold. A suspiciously calm board." /> : null}
+    <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div className="mobile-scroll flex gap-1 rounded-xl bg-muted p-1"><FilterButton active={filter === 'all'} onClick={() => setFilter('all')} label="All tasks" /><FilterButton active={filter === 'review'} onClick={() => setFilter('review')} label="Needs review" /><FilterButton active={filter === 'mine'} onClick={() => setFilter('mine')} label="Assigned to me" /></div><div className="flex items-center gap-2"><button data-testid="button-board-filter" onClick={() => setFilter(filter === 'all' ? 'review' : 'all')} className="hidden items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-[11px] font-bold text-muted-foreground hover:text-foreground md:flex"><ListFilter size={14} /> Filter view</button><div className="flex gap-1 rounded-xl border border-border bg-card p-1"><button onClick={() => setView('board')} data-testid="button-view-board" className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-bold ${view === 'board' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground'}`}><LayoutDashboard size={13} /> Board</button><button onClick={() => setView('calendar')} data-testid="button-view-calendar" className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-bold ${view === 'calendar' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground'}`}><CalendarDays size={13} /> Calendar</button></div></div></div>
+    {view === 'board' ? <><div className="space-y-4">{openThreads.map(([threadId, items], index) => <Thread key={threadId} threadId={threadId} items={items} entries={state.entries} index={index} onComplete={onComplete} onReply={onReply} onReview={onReview} onSource={onSource} onCalendar={onCalendar} threshold={state.threshold} />)}</div>{openThreads.length === 0 ? <EmptyState title="Nothing open right now" detail="Every matching commitment is complete or waiting for a different filter." /> : null}{completedThreads.length > 0 ? <section className="mt-7 rounded-2xl border border-border/80 bg-muted/35 p-4 md:p-5"><div className="mb-4 flex items-center justify-between border-b border-border/70 pb-3"><div className="flex items-center gap-2 text-[13px] font-extrabold"><CheckCircle2 size={17} className="text-primary" /> Completed</div><span className="rounded-full bg-secondary px-2 py-0.5 font-mono text-[10px] font-bold text-muted-foreground">{completedThreads.reduce((total, [, items]) => total + items.length, 0)}</span></div><div className="space-y-4">{completedThreads.map(([threadId, items], index) => <Thread key={threadId} threadId={threadId} items={items} entries={state.entries} index={index} onComplete={onComplete} onReply={onReply} onReview={onReview} onSource={onSource} onCalendar={onCalendar} threshold={state.threshold} />)}</div></section> : null}</> : <CalendarView items={matchingItems} onComplete={onComplete} onCalendar={onCalendar} />}
   </div>;
 }
 
-function Thread({ threadId, items, entries, index, onComplete, onReply, onReview, onSource, threshold }: { threadId: string; items: Extraction[]; entries: Entry[]; index: number; onComplete: (id: string) => void; onReply: (item: Extraction) => void; onReview: (id: string) => void; onSource: (id: string) => void; threshold: number }) {
+function Thread({ threadId, items, entries, index, onComplete, onReply, onReview, onSource, onCalendar, threshold }: { threadId: string; items: Extraction[]; entries: Entry[]; index: number; onComplete: (id: string) => void; onReply: (item: Extraction) => void; onReview: (id: string) => void; onSource: (id: string) => void; onCalendar: (item: Extraction) => void; threshold: number }) {
   const threadName = threadId === 'thread-launch' ? 'Onboarding launch' : threadId === 'thread-client' ? 'Northstar case study' : threadId === 'thread-finance' ? 'Finance follow-up' : 'New capture';
   const threadEntries = entries.filter(entry => entry.threadId === threadId);
   return <section className="animate-rise rounded-2xl border border-border bg-card p-4 shadow-[0_5px_22px_hsl(222_35%_18%/.035)] md:p-5" style={{ animationDelay: `${index * 70}ms` }} data-testid={`thread-${threadId}`}>
@@ -238,9 +248,74 @@ function Thread({ threadId, items, entries, index, onComplete, onReply, onReview
       const source = entries.find(entry => entry.id === item.entryId);
       const needsReview = item.confidence < threshold;
       return <div key={item.id} className={`task-card group rounded-xl border p-3.5 ${item.status === 'done' ? 'border-border/60 bg-muted/45' : needsReview ? 'border-[hsl(43_92%_66%/.6)] bg-[hsl(43_92%_66%/.08)]' : 'border-border/80 bg-card'}`} data-testid={`card-task-${item.id}`}>
-        <div className="flex gap-3"><button onClick={() => onComplete(item.id)} aria-label={`Mark ${item.task} ${item.status === 'done' ? 'pending' : 'done'}`} data-testid={`button-complete-${item.id}`} className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border transition ${item.status === 'done' ? 'border-primary bg-primary text-primary-foreground' : 'border-border hover:border-primary hover:bg-secondary'}`}>{item.status === 'done' ? <Check size={12} strokeWidth={3} /> : <Circle size={13} className="text-transparent group-hover:text-primary/40" />}</button><div className="min-w-0 flex-1"><div className="flex flex-wrap items-start justify-between gap-2"><div><p className={`text-[13px] font-bold ${item.status === 'done' ? 'text-muted-foreground line-through' : 'text-foreground'}`} data-testid={`text-task-${item.id}`}>{item.task}</p><div className="mt-2 flex flex-wrap items-center gap-1.5">{item.topicTags.map(tag => <span key={tag} className="rounded-md bg-secondary px-1.5 py-0.5 font-mono text-[9px] text-muted-foreground">#{tag}</span>)}{needsReview ? <button onClick={() => onReview(item.id)} data-testid={`button-review-${item.id}`} className="flex items-center gap-1 rounded-md bg-[hsl(43_92%_66%/.25)] px-1.5 py-0.5 font-mono text-[9px] font-bold text-[hsl(34_70%_34%)] hover:bg-[hsl(43_92%_66%/.4)]"><AlertTriangle size={10} /> check confidence</button> : null}</div></div><Urgency urgency={item.urgency} /></div><div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border/60 pt-2.5 font-mono text-[10px] text-muted-foreground"><span className="flex items-center gap-1"><UserRound size={11} /> {item.owner}</span><span className="flex items-center gap-1"><CalendarDays size={11} /> {item.deadline}</span><span className="flex items-center gap-1"><span className={`inline-block h-1.5 w-1.5 rounded-full ${needsReview ? 'bg-accent' : 'bg-primary'}`} /> {Math.round(item.confidence * 100)}% confident</span><button onClick={() => source && onSource(source.id)} data-testid={`button-source-${item.id}`} className="ml-auto flex items-center gap-1 font-sans font-bold text-primary opacity-80 hover:opacity-100 hover:underline"><Eye size={12} /> source</button><button onClick={() => onReply(item)} data-testid={`button-reply-${item.id}`} className="flex items-center gap-1 font-sans font-bold text-muted-foreground hover:text-foreground"><Send size={12} /> draft reply</button></div></div></div>
+        <div className="flex gap-3"><button onClick={() => onComplete(item.id)} aria-label={`Mark ${item.task} ${item.status === 'done' ? 'pending' : 'done'}`} data-testid={`button-complete-${item.id}`} className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border transition ${item.status === 'done' ? 'border-primary bg-primary text-primary-foreground' : 'border-border hover:border-primary hover:bg-secondary'}`}>{item.status === 'done' ? <Check size={12} strokeWidth={3} /> : <Circle size={13} className="text-transparent group-hover:text-primary/40" />}</button><div className="min-w-0 flex-1"><div className="flex flex-wrap items-start justify-between gap-2"><div><p className={`text-[13px] font-bold ${item.status === 'done' ? 'text-muted-foreground line-through' : 'text-foreground'}`} data-testid={`text-task-${item.id}`}>{item.task}</p><div className="mt-2 flex flex-wrap items-center gap-1.5">{item.topicTags.map(tag => <span key={tag} className="rounded-md bg-secondary px-1.5 py-0.5 font-mono text-[9px] text-muted-foreground">#{tag}</span>)}{needsReview ? <button onClick={() => onReview(item.id)} data-testid={`button-review-${item.id}`} className="flex items-center gap-1 rounded-md bg-[hsl(43_92%_66%/.25)] px-1.5 py-0.5 font-mono text-[9px] font-bold text-[hsl(34_70%_34%)] hover:bg-[hsl(43_92%_66%/.4)]"><AlertTriangle size={10} /> check confidence</button> : null}</div></div><Urgency urgency={item.urgency} /></div><div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border/60 pt-2.5 font-mono text-[10px] text-muted-foreground"><span className="flex items-center gap-1"><UserRound size={11} /> {item.owner}</span><span className="flex items-center gap-1"><CalendarDays size={11} /> {item.deadline}</span><span className="flex items-center gap-1"><span className={`inline-block h-1.5 w-1.5 rounded-full ${needsReview ? 'bg-accent' : 'bg-primary'}`} /> {Math.round(item.confidence * 100)}% confident</span><button onClick={() => source && onSource(source.id)} data-testid={`button-source-${item.id}`} className="ml-auto flex items-center gap-1 font-sans font-bold text-primary opacity-80 hover:opacity-100 hover:underline"><Eye size={12} /> source</button>{parseDeadlineDate(item.deadline) ? <button onClick={() => onCalendar(item)} data-testid={`button-calendar-${item.id}`} className="flex items-center gap-1 font-sans font-bold text-primary hover:underline"><CalendarPlus size={12} /> calendar</button> : null}<button onClick={() => onReply(item)} data-testid={`button-reply-${item.id}`} className="flex items-center gap-1 font-sans font-bold text-muted-foreground hover:text-foreground"><Send size={12} /> draft reply</button></div></div></div>
       </div>;
     })}</div>
+  </section>;
+}
+
+const DEMO_REFERENCE_DATE = new Date('2025-05-18T09:32:00');
+
+function parseDeadlineDate(deadline: string): Date | null {
+  const normalized = deadline.trim();
+  if (!normalized || normalized.toLowerCase().includes('needs a date')) return null;
+  if (normalized.toLowerCase() === 'today') return new Date(DEMO_REFERENCE_DATE);
+  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(normalized) ? new Date(`${normalized}T12:00:00`) : new Date(`${normalized}, 2025`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function calendarDateKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function googleCalendarDate(date: Date) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + 1);
+  const format = (value: Date) => `${value.getFullYear()}${String(value.getMonth() + 1).padStart(2, '0')}${String(value.getDate()).padStart(2, '0')}`;
+  return `${format(date)}/${format(next)}`;
+}
+
+function getGoogleCalendarUrl(item: Extraction) {
+  const date = parseDeadlineDate(item.deadline);
+  if (!date) return '#';
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: item.task,
+    dates: googleCalendarDate(date),
+    details: `Owner: ${item.owner}\nSource: Secondary Mind local task board\nTags: ${item.topicTags.join(', ')}`,
+  });
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
+function CalendarView({ items, onComplete, onCalendar }: { items: Extraction[]; onComplete: (id: string) => void; onCalendar: (item: Extraction) => void }) {
+  const monthStart = new Date(DEMO_REFERENCE_DATE.getFullYear(), DEMO_REFERENCE_DATE.getMonth(), 1);
+  const daysInMonth = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0).getDate();
+  const leadingDays = monthStart.getDay();
+  const datedItems = items.filter(item => parseDeadlineDate(item.deadline));
+  const undatedItems = items.filter(item => !parseDeadlineDate(item.deadline));
+  const tasksByDay = new Map<string, Extraction[]>();
+  datedItems.forEach(item => {
+    const date = parseDeadlineDate(item.deadline);
+    if (!date) return;
+    const key = calendarDateKey(date);
+    tasksByDay.set(key, [...(tasksByDay.get(key) || []), item]);
+  });
+  tasksByDay.forEach(dayItems => dayItems.sort((a, b) => Number(a.status === 'done') - Number(b.status === 'done')));
+  const cells = Array.from({ length: leadingDays + daysInMonth }, (_, index) => index < leadingDays ? null : new Date(monthStart.getFullYear(), monthStart.getMonth(), index - leadingDays + 1));
+  return <section className="animate-rise rounded-2xl border border-border bg-card p-4 shadow-[0_5px_22px_hsl(222_35%_18%/.035)] md:p-5" data-testid="calendar-view">
+    <div className="mb-5 flex flex-wrap items-end justify-between gap-3 border-b border-border/70 pb-4"><div><div className="font-mono text-[10px] font-medium uppercase tracking-[.17em] text-primary">Dated commitments</div><h2 className="mt-1 font-serif text-[27px]">May 2025</h2></div><div className="flex items-center gap-3 font-mono text-[10px] text-muted-foreground"><span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-primary" /> open</span><span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-muted-foreground/40" /> complete</span></div></div>
+    <div className="grid grid-cols-7 gap-px overflow-hidden rounded-xl border border-border bg-border">
+      {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => <div key={day} className="bg-muted px-2 py-2 text-center font-mono text-[9px] font-bold uppercase tracking-[.08em] text-muted-foreground">{day}</div>)}
+      {cells.map((date, index) => {
+        const dayItems = date ? tasksByDay.get(calendarDateKey(date)) || [] : [];
+        const isToday = date ? calendarDateKey(date) === calendarDateKey(DEMO_REFERENCE_DATE) : false;
+        return <div key={date ? calendarDateKey(date) : `blank-${index}`} className={`min-h-[116px] bg-card p-1.5 md:min-h-[135px] md:p-2 ${date ? '' : 'bg-muted/35'}`} data-testid={date ? `calendar-day-${date.getDate()}` : undefined}>
+          {date ? <><div className={`mb-1.5 flex size-6 items-center justify-center rounded-full font-mono text-[10px] font-bold ${isToday ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}>{date.getDate()}</div><div className="space-y-1">{dayItems.slice(0, 3).map(item => <div key={item.id} className={`rounded-lg border p-1.5 ${item.status === 'done' ? 'border-border/50 bg-muted/60 opacity-65' : 'border-primary/25 bg-[hsl(164_59%_38%/.07)]'}`}><p className={`truncate text-[10px] font-bold leading-tight ${item.status === 'done' ? 'text-muted-foreground line-through' : ''}`} title={item.task}>{item.task}</p><div className="mt-1 flex items-center justify-between gap-1"><span className="truncate font-mono text-[8px] text-muted-foreground">{item.owner}</span><div className="flex shrink-0 gap-0.5"><button onClick={() => onComplete(item.id)} aria-label={`Mark ${item.task} ${item.status === 'done' ? 'pending' : 'done'}`} data-testid={`button-calendar-complete-${item.id}`} className="rounded p-1 text-muted-foreground hover:bg-secondary hover:text-primary"><Check size={11} /></button><button onClick={() => onCalendar(item)} aria-label={`Add ${item.task} to Google Calendar`} data-testid={`button-calendar-export-${item.id}`} className="rounded p-1 text-primary hover:bg-secondary"><CalendarPlus size={11} /></button></div></div></div>)}{dayItems.length > 3 ? <span className="font-mono text-[8px] text-muted-foreground">+{dayItems.length - 3} more</span> : null}</div></> : null}
+        </div>;
+      })}
+    </div>
+    <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-border/70 pt-4"><p className="text-[11px] text-muted-foreground"><strong className="text-foreground">{datedItems.length}</strong> dated tasks · click the calendar icon to create a Google Calendar event</p>{undatedItems.length > 0 ? <p className="font-mono text-[10px] text-muted-foreground">{undatedItems.length} without a date stay on the board</p> : <p className="font-mono text-[10px] text-primary">All matching tasks have dates</p>}</div>
+    {undatedItems.length > 0 ? <div className="mt-3 flex flex-wrap gap-2">{undatedItems.map(item => <span key={item.id} className="rounded-lg border border-dashed border-border px-2.5 py-1.5 text-[10px] font-semibold text-muted-foreground">{item.task}</span>)}</div> : null}
   </section>;
 }
 
