@@ -19,7 +19,7 @@ type Urgency = 'high' | 'medium' | 'low';
 type Status = 'pending' | 'done';
 type Entry = { id: string; sourceType: SourceType; rawText: string; transcribedText: string; timestamp: string; sender: string; threadId: string };
 type Extraction = { id: string; entryId: string; task: string; owner: string; deadline: string; status: Status; topicTags: string[]; urgency: Urgency; confidence: number; threadId: string; completedAt?: string };
-type DigestItem = { id: string; title: string; urgency: Urgency; held: boolean; meetingLabel: string };
+type DigestItem = { id: string; extractionId: string; held: boolean; dismissed?: boolean; meetingLabel: string };
 type StoredState = { entries: Entry[]; extractions: Extraction[]; digest: DigestItem[]; threshold: number; model: string };
 
 const seed: StoredState = {
@@ -39,25 +39,47 @@ const seed: StoredState = {
     { id: 'task-6', entryId: 'entry-1', task: 'Confirm copy review attendees', owner: 'You', deadline: 'Thu, May 22', status: 'done', topicTags: ['onboarding'], urgency: 'low', confidence: .86, threadId: 'thread-launch', completedAt: '2025-05-16T13:05:00' },
   ],
   digest: [
-    { id: 'digest-1', title: 'Review onboarding copy', urgency: 'high', held: false, meetingLabel: 'Before Friday review' },
-    { id: 'digest-2', title: 'Add accessibility notes to review doc', urgency: 'medium', held: true, meetingLabel: 'Held from yesterday' },
-    { id: 'digest-3', title: 'Ask Northstar for final headshots', urgency: 'medium', held: false, meetingLabel: 'Client handoff · Mon 26' },
+    { id: 'digest-1', extractionId: 'task-1', held: false, meetingLabel: 'Before Friday review' },
+    { id: 'digest-2', extractionId: 'task-3', held: true, meetingLabel: 'Held from yesterday' },
+    { id: 'digest-3', extractionId: 'task-4', held: false, meetingLabel: 'Client handoff · Mon 26' },
   ],
   threshold: .7,
   model: 'Private local model',
 };
 
 const navItems = [
-  { href: '/', label: 'Task board', icon: LayoutDashboard },
-  { href: '/search', label: 'Second brain', icon: Search },
-  { href: '/digest', label: 'Digest', icon: Clock3, count: 2 },
-  { href: '/insights', label: 'Office kit', icon: BarChart3 },
+  { href: '/', label: 'My tasks', icon: LayoutDashboard },
+  { href: '/search', label: 'Search memory', icon: Search },
+  { href: '/digest', label: 'Daily brief', icon: Clock3 },
+  { href: '/insights', label: 'Insights', icon: BarChart3 },
 ];
 
 function loadState(): StoredState {
   try {
     const stored = localStorage.getItem('secondary-mind-state-v1');
-    return stored ? JSON.parse(stored) as StoredState : seed;
+    if (!stored) return seed;
+    const parsed = JSON.parse(stored) as Partial<StoredState>;
+    const extractions = Array.isArray(parsed.extractions) ? parsed.extractions : seed.extractions;
+    const savedDigest = Array.isArray(parsed.digest) ? parsed.digest : seed.digest;
+    const digest = savedDigest.map((item, index) => {
+      const legacy = item as DigestItem & { title?: string };
+      return {
+        id: legacy.id || `digest-${index + 1}`,
+        extractionId: legacy.extractionId || extractions.find(extraction => extraction.task === legacy.title)?.id || seed.digest[index]?.extractionId || '',
+        held: Boolean(legacy.held),
+        dismissed: Boolean(legacy.dismissed),
+        meetingLabel: legacy.meetingLabel || 'From captured context',
+      };
+    }).filter(item => item.extractionId);
+    return {
+      ...seed,
+      ...parsed,
+      entries: Array.isArray(parsed.entries) ? parsed.entries : seed.entries,
+      extractions,
+      digest,
+      threshold: typeof parsed.threshold === 'number' ? parsed.threshold : seed.threshold,
+      model: typeof parsed.model === 'string' ? parsed.model : seed.model,
+    };
   } catch { return seed; }
 }
 
@@ -104,7 +126,8 @@ function App() {
       const taskText = clean.replace(/^(voice memo|screenshot capture)\s*[—-]\s*/i, '').trim();
       const entry: Entry = { id, sourceType: type, rawText: clean, transcribedText: taskText, timestamp: new Date().toISOString(), sender: 'You', threadId: `thread-${type}-${Date.now()}` };
       const extraction: Extraction = { id: `task-${Date.now()}`, entryId: id, task: taskText.length > 72 ? `${taskText.slice(0, 69)}…` : taskText, owner: 'You', deadline: 'Needs a date', status: 'pending', topicTags: [type === 'whatsapp' ? 'imported' : type === 'voice' ? 'voice memo' : 'screenshot'], urgency: 'medium', confidence: .74, threadId: entry.threadId };
-      updateState(current => ({ ...current, entries: [entry, ...current.entries], extractions: [extraction, ...current.extractions] }));
+      const digestItem: DigestItem = { id: `digest-${Date.now()}`, extractionId: extraction.id, held: false, meetingLabel: 'Just captured · review when ready' };
+      updateState(current => ({ ...current, entries: [entry, ...current.entries], extractions: [extraction, ...current.extractions], digest: [digestItem, ...current.digest] }));
       setProcessing(false); setCaptureText(''); setCaptureOpen(false); setNotice('New commitment extracted');
     }, 1100);
   };
@@ -138,7 +161,7 @@ function App() {
                 const Icon = item.icon; const active = path === item.href;
                 return <Link key={item.href} href={item.href} onClick={() => setMobileNav(false)} data-testid={`link-nav-${item.label.toLowerCase().replaceAll(' ', '-')}`} className={`nav-item flex items-center justify-between rounded-xl px-3 py-2.5 text-[13px] font-semibold ${active ? 'bg-sidebar-accent text-white' : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/70 hover:text-white'}`}>
                   <span className="flex items-center gap-3"><Icon size={17} strokeWidth={active ? 2.1 : 1.7} /><span>{item.label}</span></span>
-                  {item.count ? <span className="rounded-full bg-accent px-2 py-0.5 font-mono text-[10px] font-medium text-accent-foreground">{item.count}</span> : null}
+                  {item.href === '/digest' ? <span className="rounded-full bg-accent px-2 py-0.5 font-mono text-[10px] font-medium text-accent-foreground">{state.digest.filter(digestItem => digestItem.held && !digestItem.dismissed && state.extractions.some(extraction => extraction.id === digestItem.extractionId && extraction.status === 'pending')).length}</span> : null}
                 </Link>;
               })}
             </nav>
@@ -237,11 +260,20 @@ function SearchExamples({ onPick }: { onPick: (value: string) => void }) {
 
 function DigestPage({ state, updateState, onComplete }: { state: StoredState; updateState: (fn: (current: StoredState) => StoredState) => void; onComplete: (id: string) => void }) {
   const [released, setReleased] = useState(false);
-  const held = state.digest.filter(item => item.held);
-  const upcoming = state.digest.filter(item => !item.held);
+  const digestItems = useMemo(() => state.digest.map(digestItem => {
+    const extraction = state.extractions.find(item => item.id === digestItem.extractionId);
+    if (!extraction || extraction.status === 'done' || digestItem.dismissed) return null;
+    return { ...digestItem, title: extraction.task, urgency: extraction.urgency, extractionId: extraction.id };
+  }).filter((item): item is DigestItem & { title: string; urgency: Urgency } => Boolean(item)), [state.digest, state.extractions]);
+  const held = digestItems.filter(item => item.held);
+  const upcoming = digestItems.filter(item => !item.held);
   const toggleHold = (id: string) => { updateState(current => ({ ...current, digest: current.digest.map(item => item.id === id ? { ...item, held: !item.held } : item) })); };
-  const dismiss = (id: string) => { updateState(current => ({ ...current, digest: current.digest.filter(item => item.id !== id) })); };
-  return <div><PageHeading eyebrow="Interruption digest · Monday morning" title="The day, in the right order." detail="A humane briefing for what deserves attention now, what can wait, and what you can release after the meeting." action={<button onClick={() => setReleased(true)} data-testid="button-release-digest" className="flex items-center gap-2 rounded-xl border border-border bg-card px-3.5 py-2.5 text-[12px] font-bold hover:border-primary hover:text-primary"><Archive size={15} /> Release view</button>} /><div className="grid gap-5 lg:grid-cols-[1.2fr_.8fr]"><section className="rounded-2xl border border-border bg-card p-5 md:p-6"><SectionLabel label="Next up" count={upcoming.length} /><div className="mt-4 space-y-2">{upcoming.map(item => <DigestRow key={item.id} item={item} onToggle={() => toggleHold(item.id)} onDismiss={() => dismiss(item.id)} onDone={() => { const task = state.extractions.find(extraction => extraction.task === item.title); if (task) onComplete(task.id); }} />)}</div>{upcoming.length === 0 ? <EmptyState title="Your next hour is clear" detail="Held items will stay parked until you are ready." /> : null}</section><section className="rounded-2xl border border-border bg-[hsl(222_35%_18%)] p-5 text-sidebar-foreground md:p-6"><SectionLabel label="Held gently" count={held.length} inverted /><p className="mt-3 text-[12px] leading-relaxed text-sidebar-foreground/60">These commitments were deliberately kept out of your immediate view. Nothing is lost.</p><div className="mt-5 space-y-2">{held.map(item => <DigestRow key={item.id} item={item} onToggle={() => toggleHold(item.id)} onDismiss={() => dismiss(item.id)} dark />)}{held.length === 0 ? <div className="rounded-xl border border-sidebar-border p-4 text-[12px] text-sidebar-foreground/55">Nothing held right now.</div> : null}</div></section></div>{released ? <div className="animate-rise mt-5 rounded-2xl border border-primary/30 bg-[hsl(164_59%_38%/.09)] p-5"><div className="flex items-center gap-2 text-[11px] font-bold text-primary"><CheckCircle2 size={15} /> Post-meeting release view</div><h2 className="mt-2 font-serif text-[25px]">Good. Now release the things that moved.</h2><p className="mt-1 text-[12px] text-muted-foreground">A compact handoff for the next person, not another notification.</p><div className="mt-4 flex flex-wrap gap-2">{state.extractions.filter(item => item.status === 'pending').slice(0, 3).map(item => <span key={item.id} className="rounded-lg border border-border bg-card px-3 py-2 text-[11px] font-semibold">{item.task}</span>)}</div></div> : null}</div>;
+  const dismiss = (id: string) => { updateState(current => ({ ...current, digest: current.digest.map(item => item.id === id ? { ...item, dismissed: true } : item) })); };
+  const releaseHeld = () => {
+    updateState(current => ({ ...current, digest: current.digest.map(item => item.held ? { ...item, held: false } : item) }));
+    setReleased(true);
+  };
+  return <div><PageHeading eyebrow="Daily brief · Monday morning" title="Today, in the right order." detail="A humane briefing for what deserves attention now, what can wait, and what you can release after the meeting." action={<button onClick={releaseHeld} data-testid="button-release-digest" className="flex items-center gap-2 rounded-xl border border-border bg-card px-3.5 py-2.5 text-[12px] font-bold hover:border-primary hover:text-primary"><Archive size={15} /> Release held items</button>} /><div className="grid gap-5 lg:grid-cols-[1.2fr_.8fr]"><section className="rounded-2xl border border-border bg-card p-5 md:p-6"><SectionLabel label="Next up" count={upcoming.length} /><div className="mt-4 space-y-2">{upcoming.map(item => <DigestRow key={item.id} item={item} onToggle={() => toggleHold(item.id)} onDismiss={() => dismiss(item.id)} onDone={() => onComplete(item.extractionId)} />)}</div>{upcoming.length === 0 ? <EmptyState title="Your next hour is clear" detail="Held items will stay parked until you are ready." /> : null}</section><section className="rounded-2xl border border-border bg-[hsl(222_35%_18%)] p-5 text-sidebar-foreground md:p-6"><SectionLabel label="Held gently" count={held.length} inverted /><p className="mt-3 text-[12px] leading-relaxed text-sidebar-foreground/60">These commitments were deliberately kept out of your immediate view. Nothing is lost.</p><div className="mt-5 space-y-2">{held.map(item => <DigestRow key={item.id} item={item} onToggle={() => toggleHold(item.id)} onDismiss={() => dismiss(item.id)} dark />)}{held.length === 0 ? <div className="rounded-xl border border-sidebar-border p-4 text-[12px] text-sidebar-foreground/55">Nothing held right now.</div> : null}</div></section></div>{released ? <div className="animate-rise mt-5 rounded-2xl border border-primary/30 bg-[hsl(164_59%_38%/.09)] p-5"><div className="flex items-center gap-2 text-[11px] font-bold text-primary"><CheckCircle2 size={15} /> Post-meeting release view</div><h2 className="mt-2 font-serif text-[25px]">The held work is back in your day.</h2><p className="mt-1 text-[12px] text-muted-foreground">Released items are now visible in “Next up” and remain synced with your board.</p><div className="mt-4 flex flex-wrap gap-2">{upcoming.slice(0, 3).map(item => <span key={item.id} className="rounded-lg border border-border bg-card px-3 py-2 text-[11px] font-semibold">{item.title}</span>)}</div></div> : null}</div>;
 }
 
 function Insights({ state }: { state: StoredState }) {
@@ -274,7 +306,7 @@ function ReviewModal({ item, onClose, onAccept }: { item?: Extraction; onClose: 
   return <div className="fixed inset-0 z-40 grid place-items-center bg-foreground/25 p-4 backdrop-blur-sm"><div className="animate-rise w-full max-w-[480px] rounded-3xl border border-border bg-card p-6 shadow-2xl"><div className="flex items-start justify-between"><div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.14em] text-[hsl(34_70%_34%)]"><AlertTriangle size={15} /> Needs a human look</div><button onClick={onClose} data-testid="button-close-review" className="rounded-lg p-2 text-muted-foreground hover:bg-muted"><X size={17} /></button></div><h2 className="mt-5 font-serif text-[27px] leading-tight">Does this feel like a commitment?</h2><div className="mt-5 rounded-2xl bg-[hsl(43_92%_66%/.16)] p-4"><p className="text-[14px] font-bold">{item.task}</p><div className="mt-3 flex gap-4 font-mono text-[10px] text-muted-foreground"><span>{item.owner}</span><span>{item.deadline}</span><span>{Math.round(item.confidence * 100)}% confidence</span></div></div><p className="mt-4 text-[12px] leading-relaxed text-muted-foreground">Secondary Mind is not certain this is an actionable promise. Confirming it will keep it on your board and raise the confidence above your review line.</p><div className="mt-6 flex justify-end gap-2"><button onClick={onClose} data-testid="button-skip-review" className="rounded-xl px-3.5 py-2.5 text-[12px] font-bold text-muted-foreground hover:bg-muted">Keep reviewing later</button><button onClick={onAccept} data-testid="button-confirm-review" className="flex items-center gap-2 rounded-xl bg-primary px-3.5 py-2.5 text-[12px] font-bold text-primary-foreground"><Check size={14} /> Yes, keep it</button></div></div></div>;
 }
 
-function DigestRow({ item, onToggle, onDismiss, onDone, dark = false }: { item: DigestItem; onToggle: () => void; onDismiss: () => void; onDone?: () => void; dark?: boolean }) {
+function DigestRow({ item, onToggle, onDismiss, onDone, dark = false }: { item: DigestItem & { title: string; urgency: Urgency }; onToggle: () => void; onDismiss: () => void; onDone?: () => void; dark?: boolean }) {
   const urgencyClass = item.urgency === 'high' ? 'bg-[hsl(3_71%_56%/.14)] text-destructive' : 'bg-[hsl(43_92%_66%/.25)] text-[hsl(34_70%_34%)]';
   const rowClass = dark ? 'border-sidebar-border bg-sidebar-accent/45' : 'border-border/70 bg-muted/40';
   const titleClass = dark ? 'text-white' : '';
