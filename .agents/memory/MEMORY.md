@@ -1,0 +1,1 @@
+- [Secondary Mind prototype boundary](secondary-mind-prototype.md) — keep demo data local while preserving the native extraction contract and trust story.

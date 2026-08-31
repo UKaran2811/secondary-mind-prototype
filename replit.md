@@ -1,6 +1,6 @@
-# [Project name]
+# Secondary Mind
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+An offline-first workspace prototype that turns WhatsApp exports, voice notes, and screenshots into a searchable, confidence-aware task board.
 
 ## Run & Operate
 
@@ -22,15 +22,22 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/secondary-mind/src/App.tsx` — browser-local product flow and seeded demo data
+- `artifacts/secondary-mind/src/index.css` — visual language, theme tokens, responsive styles
+- `artifacts/secondary-mind/.replit-artifact/artifact.toml` — registered web artifact and preview routing
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- The prototype keeps entries, extractions, digest state, and settings in localStorage so the offline/privacy promise is demonstrable without a backend.
+- The Android-specific Whisper, OCR, and on-device LLM layers are represented by transparent demo simulations; the extraction contract and confidence states are preserved for a later native implementation.
+- A single local state model feeds the board, search, source detail, digest, and insights views so the demo never presents disconnected mock data.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- Import or paste WhatsApp-style text and simulate voice memo transcription or screenshot OCR.
+- Review extracted commitments grouped into evolving threads with owner, deadline, urgency, confidence, and exact source traceability.
+- Search source content, inspect the original moment, mark work done, and copy a reply draft.
+- Explore interruption digest, Office Kit insights, privacy settings, model choice, and confidence threshold controls.
 
 ## User preferences
 
@@ -38,7 +45,8 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- Resetting the demo removes locally captured entries and restores the seeded review item and three-entry onboarding thread.
+- The web artifact is intentionally frontend-only for the prototype; no API server or external integration is required to demonstrate the flow.
 
 ## Pointers
 

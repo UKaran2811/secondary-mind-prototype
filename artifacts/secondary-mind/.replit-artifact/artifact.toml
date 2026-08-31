@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Secondary Mind"
+description = "An offline-first workspace that turns WhatsApp exports, voice notes, and screenshots into a structured, searchable task board with confidence-aware extraction, source traceability, and interruption insights."
+version = "1.0.0"
+id = "artifacts/secondary-mind"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 20984
+
+[services.development]
+run = "pnpm --filter @workspace/secondary-mind run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/secondary-mind", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/secondary-mind/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "20984"
+BASE_PATH = "/"
