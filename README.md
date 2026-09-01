@@ -19,7 +19,6 @@ Built for **iQOO Hack Pune**. This repo is the browser-based prototype that vali
 - [What's real vs. simulated](#whats-real-vs-simulated)
 - [Resetting the demo](#resetting-the-demo)
 - [Team](#team)
-- [License](#license)
 
 ---
 
@@ -86,6 +85,18 @@ Run the prototype (the part you actually want to demo):
 pnpm --filter @workspace/secondary-mind dev
 ```
 
+> **Running outside Replit?** `vite.config.ts` requires `PORT` and `BASE_PATH` to be set — Replit injects both automatically via `.replit-artifact/artifact.toml`, but a local shell won't have them. Set them first:
+>
+> ```bash
+> # macOS/Linux
+> export PORT=5173
+> export BASE_PATH=/
+>
+> # Windows PowerShell
+> $env:PORT="5173"
+> $env:BASE_PATH="/"
+> ```
+
 Run the API server (optional — a health-check skeleton, not required for the prototype):
 
 ```bash
@@ -136,7 +147,3 @@ Resetting removes any locally captured entries and restores the seeded review it
 | **Karan Uchadiya** | Storage, UI & on-device pipeline |
 | **Ronak Bharodiya** | Capture & permissions |
 | **Kashyap Bhanderi** | AI extraction & threading |
-
-## License
-
-MIT
