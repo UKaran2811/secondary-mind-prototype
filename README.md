@@ -2,9 +2,9 @@
 
 **The commitments buried in your conversations, finally visible.**
 
-An offline-first workspace prototype that turns WhatsApp exports, voice notes, and screenshots into a searchable, confidence-aware task board — entirely in the browser, entirely on-device.
+An offline-first workspace prototype that turns WhatsApp exports, voice notes, and screenshots into a searchable, confidence-aware task board entirely in the browser, entirely on-device.
 
-Built for **iQOO Hack Pune**. This repo is the browser-based prototype that validates the product experience — board, search, digest, calendar export — ahead of the native, on-device Android build.
+Built for **iQOO Hack Pune**. This repo is the browser-based prototype that validates the product experience — board, search, digest, calendar export ahead of the native, on-device Android build.
 
 ---
 
@@ -36,7 +36,7 @@ Built for **iQOO Hack Pune**. This repo is the browser-based prototype that vali
 Secondary Mind's core claim is that private conversation content never leaves the device. The prototype is built to make that claim demonstrable rather than asserted:
 
 - **No backend required to run the demo.** Entries, extractions, digest state, and settings all live in the browser's `localStorage`. There's nothing to upload and nothing to leak.
-- **The ML layers are honest simulations, not fake data.** Whisper transcription, screenshot OCR, and on-device LLM extraction are represented by transparent, clearly-labeled simulations in this build. They preserve the exact extraction contract — owner, deadline, urgency, confidence, source traceability — that the native Android implementation (Whisper Tiny, ML Kit, Gemma 2B / Phi-3 running on the Snapdragon NPU) will fill in.
+- **The ML layers are honest simulations, not fake data.** Whisper transcription, screenshot OCR, and on-device LLM extraction are represented by transparent, clearly-labeled simulations in this build. They preserve the exact extraction contract owner, deadline, urgency, confidence, source traceability that the native Android implementation (Whisper Tiny, ML Kit, Gemma 2B / Phi-3 running on the Snapdragon NPU) will fill in.
 - **One shared state model** feeds the board, search, source detail, digest, and insights views, so the demo never shows disconnected mock data between screens.
 
 ## Tech stack
@@ -74,7 +74,7 @@ Secondary Mind's core claim is that private conversation content never leaves th
 
 ## Getting started
 
-**Prerequisites:** Node.js 24, [pnpm](https://pnpm.io) (the workspace refuses `npm`/`yarn` installs — see the `preinstall` script in `package.json`).
+**Prerequisites:** Node.js 24, [pnpm](https://pnpm.io) (the workspace refuses `npm`/`yarn` installs see the `preinstall` script in `package.json`).
 
 ```bash
 pnpm install
@@ -86,7 +86,7 @@ Run the prototype (the part you actually want to demo):
 pnpm --filter @workspace/secondary-mind dev
 ```
 
-Run the API server (optional — a health-check skeleton, not required for the prototype):
+Run the API server (optional a health-check skeleton, not required for the prototype):
 
 ```bash
 pnpm --filter @workspace/api-server dev   # serves on port 5000
@@ -115,7 +115,7 @@ export DATABASE_URL="postgres://..."
 
 **Scaffolded but not yet the point of this repo:**
 - The Express API server currently exposes a single `/api/healthz` route.
-- The Postgres schema (`lib/db/src/schema`) is an empty template — no tables defined yet.
+- The Postgres schema (`lib/db/src/schema`) is an empty template no tables defined yet.
 - The OpenAPI spec (`lib/api-spec/openapi.yaml`) only documents the health check.
 
 These exist so the eventual backend has a contract-first shape to grow into; none of them are required to run or demo the prototype today.
@@ -127,7 +127,7 @@ These exist so the eventual backend has a contract-first shape to grow into; non
 
 ## Resetting the demo
 
-Resetting removes any locally captured entries and restores the seeded review item plus a three-entry onboarding thread — useful for giving a clean demo without reinstalling anything.
+Resetting removes any locally captured entries and restores the seeded review item plus a three-entry onboarding thread useful for giving a clean demo without reinstalling anything.
 
 ## Team
 
