@@ -4,7 +4,7 @@
 
 An offline-first workspace prototype that turns WhatsApp exports, voice notes, and screenshots into a searchable, confidence-aware task board entirely in the browser, entirely on-device.
 
-Built for **iQOO Hack Pune**. This repo is the browser-based prototype that validates the product experience — board, search, digest, calendar export ahead of the native, on-device Android build.
+Built for **iQOO Hack Pune**. This repo is the browser-based prototype that validates the product experience board, search, digest, calendar export ahead of the native, on-device Android build.
 
 ---
 
@@ -120,7 +120,7 @@ export DATABASE_URL="postgres://..."
 
 These exist so the eventual backend has a contract-first shape to grow into; none of them are required to run or demo the prototype today.
 
-**Not yet real — simulated in this build, to become native during the hackathon:**
+**Not yet real simulated in this build, to become native during the hackathon:**
 - Whisper Tiny voice transcription
 - ML Kit screenshot OCR
 - On-device LLM extraction (Gemma 2B / Phi-3)
